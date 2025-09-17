@@ -60,11 +60,14 @@ class BuddyController extends GetxController {
       _speechEnabled.value = await _speechToText.initialize();
       if (_speechEnabled.value) {
         _statusMessage.value = 'Ready to listen!';
+        _toast('Ready to listen!');
       } else {
         _statusMessage.value = 'Speech recognition not available';
+        _toast('Speech recognition not available');
       }
     } catch (e) {
       _statusMessage.value = 'Error initializing speech: $e';
+      _toast('Error initializing speech');
       _speechEnabled.value = false;
     }
   }
@@ -104,6 +107,7 @@ class BuddyController extends GetxController {
       _waitingForMore.value = false;
       _lastPartialText = '';
       _statusMessage.value = 'Listening...';
+      _toast('Listening...');
 
       // Cancel any existing timers
       _pauseTimer?.cancel();
@@ -113,6 +117,7 @@ class BuddyController extends GetxController {
       _isListening.value = true;
     } catch (e) {
       _statusMessage.value = 'Error starting speech recognition: $e';
+      _toast('Error starting speech');
       _isListening.value = false;
     }
   }
@@ -131,12 +136,15 @@ class BuddyController extends GetxController {
 
       if (_lastWords.value.isNotEmpty) {
         _statusMessage.value = 'Processing...';
+        _toast('Processing...');
         await _processUserInput(_lastWords.value);
       } else {
         _statusMessage.value = 'No speech detected. Try again.';
+        _toast('No speech detected.');
       }
     } catch (e) {
       _statusMessage.value = 'Error stopping speech recognition: $e';
+      _toast('Error stopping speech');
       _isListening.value = false;
       _isPaused.value = false;
       _waitingForMore.value = false;
@@ -174,6 +182,7 @@ class BuddyController extends GetxController {
 
       if (_lastWords.value.isNotEmpty) {
         _statusMessage.value = 'Processing...';
+        _toast('Processing...');
         _processUserInput(_lastWords.value);
       }
     }
@@ -222,6 +231,7 @@ class BuddyController extends GetxController {
 
     try {
       _statusMessage.value = 'Getting AI response...';
+      _toast('Getting AI response...');
 
       // Save user message to history
       await _historyService.addUserMessage(userInput);
@@ -247,6 +257,7 @@ class BuddyController extends GetxController {
       await _speakResponse(response);
     } catch (e) {
       _statusMessage.value = 'Error: $e';
+      _toast('Error occurred');
       await _speakResponse('Sorry, I encountered an error processing your request.');
     } finally {
       _isProcessing.value = false;
@@ -272,11 +283,34 @@ class BuddyController extends GetxController {
       }
       _isSpeaking.value = true;
       _statusMessage.value = 'Speaking...';
-      await _flutterTts.speak(text);
+      final cleaned = _stripEmojis(text);
+      await _flutterTts.speak(cleaned);
     } catch (e) {
       _isSpeaking.value = false;
       _statusMessage.value = 'Error speaking response: $e';
     }
+  }
+
+  // Remove emojis and related variation/ZWJ characters from TTS text
+  String _stripEmojis(String input) {
+    // Emoji ranges + variation selectors + ZWJ + regional indicators
+    final emojiRegex = RegExp(
+      r"[\u{1F600}-\u{1F64F}]|" // Emoticons
+      r"[\u{1F300}-\u{1F5FF}]|" // Misc Symbols and Pictographs
+      r"[\u{1F680}-\u{1F6FF}]|" // Transport & Map
+      r"[\u{2600}-\u{26FF}]|" // Misc symbols
+      r"[\u{2700}-\u{27BF}]|" // Dingbats
+      r"[\u{1F1E6}-\u{1F1FF}]|" // Regional Indicator Symbols
+      r"[\u{1F900}-\u{1F9FF}]|" // Supplemental Symbols and Pictographs
+      r"[\u{1FA70}-\u{1FAFF}]|" // Symbols & Pictographs Extended-A
+      r"[\u{200D}]|" // Zero Width Joiner
+      r"[\u{2640}-\u{2642}]|" // Gender symbols
+      r"[\u{FE0F}]", // Variation Selector-16
+      unicode: true,
+    );
+    final withoutEmoji = input.replaceAll(emojiRegex, '');
+    // Collapse multiple spaces created by removals
+    return withoutEmoji.replaceAll(RegExp(r"\s+"), ' ').trim();
   }
 
   /// Stop current TTS playback
@@ -285,8 +319,10 @@ class BuddyController extends GetxController {
       await _flutterTts.stop();
       _isSpeaking.value = false;
       _statusMessage.value = 'Ready to listen!';
+      _toast('Ready to listen!');
     } catch (e) {
       _statusMessage.value = 'Error stopping speech: $e';
+      _toast('Error stopping speech');
     }
   }
 
@@ -309,6 +345,7 @@ class BuddyController extends GetxController {
     if (_isMuted.value && _isSpeaking.value) {
       await stopSpeaking();
     }
+    _toast(_isMuted.value ? 'Muted' : 'Unmuted');
   }
 
   Future<void> _loadMute() async {
@@ -353,7 +390,7 @@ class BuddyController extends GetxController {
   /// Memory controls
   Future<void> clearAllMemory() async {
     await _memoryService.clearAll();
-    Get.snackbar('Memory Cleared', 'All long-term memory has been cleared');
+    // Toasts removed per request
   }
 
   Future<void> deleteMemoryById(String id) async {
@@ -361,6 +398,14 @@ class BuddyController extends GetxController {
   }
 
   Future<List<MemoryItem>> getAllMemory() async => _memoryService.getAll();
+
+  Future<void> updateMemory({required String id, required String newContent}) async {
+    await _memoryService.updateMemory(id: id, newContent: newContent);
+  }
+
+  Future<String> addMemory(String content) async {
+    return _memoryService.addMemory(content);
+  }
 
   /// Get conversation history for display
   Future<List<Map<String, dynamic>>> getConversationHistory() async {
@@ -379,5 +424,10 @@ class BuddyController extends GetxController {
     _speechToText.stop();
     _flutterTts.stop();
     super.onClose();
+  }
+
+  void _toast(String message) {
+    if (message.trim().isEmpty) return;
+    // Toasts removed per request
   }
 }

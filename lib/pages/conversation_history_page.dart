@@ -145,7 +145,7 @@ class ConversationHistoryPage extends StatelessWidget {
                 controller.clearHistory();
                 Navigator.of(context).pop();
                 Get.back(); // Go back to main page
-                Get.snackbar('History Cleared', 'All conversation history has been cleared', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green[100], colorText: Colors.green[800]);
+                // Toast removed per request
               },
               style: TextButton.styleFrom(foregroundColor: Colors.red),
               child: const Text('Clear'),

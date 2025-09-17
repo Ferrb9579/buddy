@@ -12,15 +12,15 @@ class AppConfig {
 
   // Speech Configuration
   static const String speechLanguage = 'en-US';
-  static const double speechRate = 0.6;
+  static const double speechRate = 0.65;
   static const double speechVolume = 1.0;
-  static const double speechPitch = 0.7;
+  static const double speechPitch = 0.9;
 
   // Timeouts
   static const Duration networkTimeout = Duration(seconds: 30);
   static const Duration speechTimeout = Duration(seconds: 60); // Extended timeout
   static const Duration speechPause = Duration(seconds: 6); // Longer pause before auto-processing
-  static const Duration intelligentPause = Duration(seconds: 2); // Pause detection for UI feedback
+  static const Duration intelligentPause = Duration(seconds: 4); // Pause detection for UI feedback
 
   // Memory Configuration
   // Cap long-term memory to ~10k tokens.

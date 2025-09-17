@@ -2,6 +2,7 @@ import 'package:buddy/controllers/Buddy.controller.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:buddy/routes/app_routes.dart';
+import 'package:buddy/widgets/vector_face.dart';
 
 class Buddy extends StatefulWidget {
   const Buddy({super.key});
@@ -26,34 +27,33 @@ class _BuddyState extends State<Buddy> {
           Obx(() => IconButton(tooltip: controller.isMuted ? 'Unmute' : 'Mute', icon: Icon(controller.isMuted ? Icons.volume_off : Icons.volume_up), onPressed: () => controller.toggleMute())),
           // Memory page
           IconButton(tooltip: 'Memory', icon: const Icon(Icons.memory_outlined), onPressed: () => Get.toNamed(AppRoutes.MEMORY)),
+          // Reminders page
+          IconButton(tooltip: 'Reminders', icon: const Icon(Icons.notifications_active_outlined), onPressed: () => Get.toNamed(AppRoutes.REMINDERS)),
         ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Status indicator
-            Obx(
-              () => Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: _getStatusColor(), borderRadius: BorderRadius.circular(12)),
-                child: Row(
-                  children: [
-                    Icon(_getStatusIcon(), color: Colors.white, size: 24),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        controller.statusMessage,
-                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            // Vector face animation
+            Obx(() {
+              final mood = controller.isSpeaking
+                  ? VectorMood.speaking
+                  : controller.isProcessing
+                  ? VectorMood.thinking
+                  : controller.isListening
+                  ? VectorMood.listening
+                  : controller.waitingForMore
+                  ? VectorMood.listening
+                  : VectorMood.idle;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: VectorFace(mood: mood, height: 140),
+              );
+            }),
 
-            const SizedBox(height: 24),
+            // Removed status banner; using toast/snackbar notifications instead
+            const SizedBox(height: 8),
 
             // User speech display
             Expanded(
@@ -225,24 +225,6 @@ class _BuddyState extends State<Buddy> {
         ),
       ],
     );
-  }
-
-  Color _getStatusColor() {
-    if (controller.waitingForMore) return Colors.orange[700]!; // Waiting for more speech
-    if (controller.isListening) return Colors.green;
-    if (controller.isProcessing) return Colors.orange;
-    if (controller.isSpeaking) return Colors.blue;
-    if (!controller.speechEnabled) return Colors.red;
-    return Colors.grey;
-  }
-
-  IconData _getStatusIcon() {
-    if (controller.waitingForMore) return Icons.pause_circle;
-    if (controller.isListening) return Icons.mic;
-    if (controller.isProcessing) return Icons.hourglass_empty;
-    if (controller.isSpeaking) return Icons.volume_up;
-    if (!controller.speechEnabled) return Icons.error;
-    return Icons.check_circle;
   }
 
   Color _getButtonColor() {

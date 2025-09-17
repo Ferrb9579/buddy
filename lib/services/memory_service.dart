@@ -39,6 +39,27 @@ class MemoryService {
     await _saveAll(all);
   }
 
+  Future<void> updateMemory({required String id, required String newContent}) async {
+    var all = await getAll();
+    final idx = all.indexWhere((e) => e.id == id);
+    if (idx == -1) return;
+    final updated = MemoryItem(id: id, content: newContent.trim(), timestamp: DateTime.now());
+    all[idx] = updated;
+    await _saveAll(all);
+  }
+
+  Future<String> addMemory(String content) async {
+    final all = await getAll();
+    final now = DateTime.now();
+    final item = MemoryItem(id: '${now.microsecondsSinceEpoch}-${content.hashCode}', content: content.trim(), timestamp: now);
+    all.add(item);
+    while (_totalTokens(all) > maxTokens && all.isNotEmpty) {
+      all.removeAt(0);
+    }
+    await _saveAll(all);
+    return item.id;
+  }
+
   // Rough token estimator: ~1 token ~ 4 chars (including spaces/punct). Use 3.5 to be conservative.
   int _estimateTokens(String text) {
     if (text.isEmpty) return 0;

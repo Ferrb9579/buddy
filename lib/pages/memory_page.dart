@@ -14,6 +14,7 @@ class MemoryPage extends StatefulWidget {
 class _MemoryPageState extends State<MemoryPage> {
   late Future<List<MemoryItem>> _future;
   final BuddyController controller = Get.find<BuddyController>();
+  final _textController = TextEditingController();
 
   @override
   void initState() {
@@ -25,6 +26,40 @@ class _MemoryPageState extends State<MemoryPage> {
     setState(() {
       _future = controller.getAllMemory();
     });
+  }
+
+  Future<void> _showMemoryDialog({required String title, String initial = '', required Future<void> Function(String value) onSubmit}) async {
+    _textController.text = initial;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: _textController,
+          autofocus: true,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: 'Memory fact', hintText: 'e.g., I prefer green tea'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, true);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result == true) {
+      final value = _textController.text.trim();
+      if (value.isEmpty) {
+        // Silent fail per request (no toast)
+        return;
+      }
+      await onSubmit(value);
+      await _refresh();
+    }
   }
 
   @override
@@ -71,6 +106,19 @@ class _MemoryPageState extends State<MemoryPage> {
                   Icon(Icons.memory, size: 64, color: Colors.grey[400]),
                   const SizedBox(height: 12),
                   Text('No memories yet', style: TextStyle(color: Colors.grey[600])),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      await _showMemoryDialog(
+                        title: 'Add memory',
+                        onSubmit: (value) async {
+                          await controller.addMemory(value);
+                        },
+                      );
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Memory'),
+                  ),
                 ],
               ),
             );
@@ -89,12 +137,40 @@ class _MemoryPageState extends State<MemoryPage> {
                     leading: const Icon(Icons.fact_check_outlined),
                     title: Text(m.content),
                     subtitle: Text(time),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: () async {
-                        await controller.deleteMemoryById(m.id);
-                        await _refresh();
-                      },
+                    onTap: () async {
+                      await _showMemoryDialog(
+                        title: 'Edit memory',
+                        initial: m.content,
+                        onSubmit: (value) async {
+                          await controller.updateMemory(id: m.id, newContent: value);
+                        },
+                      );
+                    },
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Edit',
+                          icon: const Icon(Icons.edit_outlined),
+                          onPressed: () async {
+                            await _showMemoryDialog(
+                              title: 'Edit memory',
+                              initial: m.content,
+                              onSubmit: (value) async {
+                                await controller.updateMemory(id: m.id, newContent: value);
+                              },
+                            );
+                          },
+                        ),
+                        IconButton(
+                          tooltip: 'Delete',
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () async {
+                            await controller.deleteMemoryById(m.id);
+                            await _refresh();
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 );
@@ -102,6 +178,19 @@ class _MemoryPageState extends State<MemoryPage> {
             ),
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          await _showMemoryDialog(
+            title: 'Add memory',
+            onSubmit: (value) async {
+              await controller.addMemory(value);
+              Get.snackbar('Memory', 'Added');
+            },
+          );
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Add'),
       ),
     );
   }

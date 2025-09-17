@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'dart:convert';
 import 'package:buddy/config/app_config.dart';
 import 'package:buddy/models/conversation_message.dart';
 
@@ -114,6 +115,60 @@ extension OpenRouterMemory on OpenRouterService {
       return [];
     } catch (_) {
       return [];
+    }
+  }
+}
+
+extension OpenRouterNotificationClassifier on OpenRouterService {
+  Future<Map<String, dynamic>?> classifyNotification({required String app, required String text}) async {
+    try {
+      final now = DateTime.now();
+      final tzOffset = now.timeZoneOffset;
+      final offsetSign = tzOffset.isNegative ? '-' : '+';
+      final offsetH = tzOffset.inHours.abs().toString().padLeft(2, '0');
+      final offsetM = (tzOffset.inMinutes.abs() % 60).toString().padLeft(2, '0');
+      final offsetStr = 'UTC$offsetSign$offsetH:$offsetM';
+
+      final messages = <Map<String, String>>[];
+      final system = [
+        'You classify phone notifications to decide if they should create a reminder.',
+        'Return ONLY minified JSON with keys: {"action":"remind|ignore","when":"ISO8601 or empty","description":"short"}.',
+        'Current local time: ${now.toLocal().toIso8601String()} ($offsetStr). Interpret dates/times relative to this.',
+        'Be robust to typos and shorthand like: "tomorow", "tmrw", "11am", "11:00", "in 2 hours".',
+        'If a specific time can be inferred, compute a future ISO8601 local datetime. If only a time is given, assume the next occurrence of that time.',
+        'Always choose action="remind" when the text implies an upcoming event or task (meeting, call, pickup, appointment).',
+        'Keep description under 80 chars. If no time can be inferred, set when to empty string.',
+        '',
+        'Examples:',
+        'App: Messages\nNotification: Tomorow we have meeting at 11am -> {"action":"remind","when":"<ISO for tomorrow at 11:00 local>","description":"Meeting at 11am"}',
+        'App: Gmail\nNotification: Dentist appointment 9/20 3pm -> {"action":"remind","when":"<ISO for 9/20 15:00 local>","description":"Dentist appointment"}',
+        'App: Calendar\nNotification: Lunch at 1 -> {"action":"remind","when":"<ISO for next 13:00 local>","description":"Lunch at 1"}',
+      ].join('\n');
+      messages.add({'role': 'system', 'content': system});
+      final user = 'App: $app\nNotification: $text';
+      messages.add({'role': 'user', 'content': user});
+
+      final response = await _dio.post('/chat/completions', data: {'model': AppConfig.defaultModel, 'messages': messages, 'max_tokens': 200, 'temperature': 0.1});
+
+      if (response.statusCode == 200) {
+        // toast
+        print('Notification classification response: ${response.data}');
+        final data = response.data;
+        final choices = data['choices'];
+        if (choices is List && choices.isNotEmpty) {
+          final textOut = choices[0]['message']['content']?.toString().trim() ?? '';
+          final jsonStart = textOut.indexOf('{');
+          final jsonEnd = textOut.lastIndexOf('}');
+          if (jsonStart >= 0 && jsonEnd > jsonStart) {
+            final jsonStr = textOut.substring(jsonStart, jsonEnd + 1);
+            final decoded = json.decode(jsonStr) as Map<String, dynamic>;
+            return decoded;
+          }
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 }

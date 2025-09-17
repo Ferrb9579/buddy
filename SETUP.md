@@ -43,9 +43,6 @@ flutter run
 ## Permissions
 
 The app requires the following permissions (already configured):
-- `RECORD_AUDIO` - For speech-to-text functionality
-- `INTERNET` - For API calls to OpenRouter
-- `MODIFY_AUDIO_SETTINGS` - For text-to-speech functionality
 
 ## Usage
 
@@ -74,9 +71,6 @@ Customize the app behavior in `lib/config/app_config.dart`:
 - Timeout durations
 
 ## Troubleshooting
-
-### Speech Recognition Issues
-- Ensure microphone permissions are granted
 - Test on a physical device (emulator microphone may not work)
 - Check for background noise
 

@@ -120,6 +120,16 @@
 				"$dart-build"
 			],
 			"group": "build"
+		},
+		{
+			"label": "flutter-analyze",
+			"type": "shell",
+			"command": "flutter analyze",
+			"isBackground": false,
+			"problemMatcher": [
+				"$dart-build"
+			],
+			"group": "build"
 		}
 	]
 }
