@@ -8,13 +8,27 @@ class OpenRouterService {
 
   OpenRouterService() {
     _dio.options.baseUrl = AppConfig.openRouterBaseUrl;
-    _dio.options.headers = {'Authorization': 'Bearer ${AppConfig.openRouterApiKey}', 'HTTP-Referer': AppConfig.appUrl, 'X-Title': AppConfig.appName, 'Content-Type': 'application/json'};
+    _dio.options.headers = {
+      // Authorization header is applied per-call to pick up late-loaded env
+      'HTTP-Referer': AppConfig.appUrl,
+      'X-Title': AppConfig.appName,
+      'Content-Type': 'application/json',
+    };
     _dio.options.connectTimeout = AppConfig.networkTimeout;
     _dio.options.receiveTimeout = AppConfig.networkTimeout;
   }
 
+  void _applyAuth() {
+    final key = AppConfig.openRouterApiKey.trim();
+    if (key.isEmpty) {
+      throw Exception('OpenRouter API key is missing. Provide OPENROUTER_API_KEY via --dart-define or .env');
+    }
+    _dio.options.headers['Authorization'] = 'Bearer $key';
+  }
+
   Future<String> generateResponse(String userMessage, {List<ConversationMessage>? conversationHistory, Map<String, String>? userInfo, String memoryBlock = ''}) async {
     try {
+      _applyAuth();
       // Build the messages array with conversation history
       final messages = <Map<String, String>>[];
 
@@ -84,6 +98,7 @@ extension OpenRouterMemory on OpenRouterService {
   // Ask the model to extract durable memory lines given the last user + assistant messages.
   Future<List<String>> extractMemory({required String userTurn, required String assistantTurn, String? userName}) async {
     try {
+      _applyAuth();
       final messages = <Map<String, String>>[];
       final sys = AppConfig.memoryExtractionPrompt;
       messages.add({'role': 'system', 'content': sys});
@@ -122,6 +137,7 @@ extension OpenRouterMemory on OpenRouterService {
 extension OpenRouterNotificationClassifier on OpenRouterService {
   Future<Map<String, dynamic>?> classifyNotification({required String app, required String text}) async {
     try {
+      _applyAuth();
       final now = DateTime.now();
       final tzOffset = now.timeZoneOffset;
       final offsetSign = tzOffset.isNegative ? '-' : '+';

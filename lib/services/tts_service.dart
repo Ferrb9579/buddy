@@ -25,7 +25,11 @@ class TtsService {
     final outputFormat = AppConfig.elevenLabsOutputFormat; // mp3_44100_128
 
     final url = '/text-to-speech/$voiceId';
-    final headers = {'xi-api-key': AppConfig.elevenLabsApiKey, 'Content-Type': 'application/json'};
+    final apiKey = AppConfig.elevenLabsApiKey.trim();
+    if (apiKey.isEmpty) {
+      throw Exception('ElevenLabs API key is missing. Provide ELEVENLABS_API_KEY via --dart-define or .env');
+    }
+    final headers = {'xi-api-key': apiKey, 'Content-Type': 'application/json'};
 
     // ElevenLabs returns audio bytes. Request as bytes.
     final response = await _dio.post<List<int>>(

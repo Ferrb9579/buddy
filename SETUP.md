@@ -23,12 +23,24 @@ A Flutter app that provides speech-to-text input, AI response generation via Ope
 3. Navigate to API Keys section
 4. Create a new API key
 
-### 3. Configure API Key
-1. Open `lib/config/app_config.dart`
-2. Replace `YOUR_OPENROUTER_API_KEY` with your actual API key:
-   ```dart
-   static const String openRouterApiKey = 'sk-or-v1-your-actual-key-here';
+### 3. Configure Secrets (no hardcoding)
+
+You have two options. For production builds, prefer `--dart-define`. For local dev, you can use a `.env` file.
+
+Option A: Use dart-define at run/build time (recommended)
+
+- OpenRouter: pass `--dart-define=OPENROUTER_API_KEY=sk-or-...`
+- ElevenLabs: pass `--dart-define=ELEVENLABS_API_KEY=sk_...`
+
+Option B: Use a local .env file for development
+
+1. Copy `.env.example` to `.env`
+2. Fill in your keys:
+   ```env
+   OPENROUTER_API_KEY=sk-or-...
+   ELEVENLABS_API_KEY=sk_...
    ```
+3. The `.env` file is ignored by git.
 
 ### 4. Install Dependencies
 ```bash
@@ -37,6 +49,10 @@ flutter pub get
 
 ### 5. Run the App
 ```bash
+# Example: run with dart-define
+flutter run --dart-define=OPENROUTER_API_KEY=sk-or-... --dart-define=ELEVENLABS_API_KEY=sk_...
+
+# Or if using .env locally, just run:
 flutter run
 ```
 

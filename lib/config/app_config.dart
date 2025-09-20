@@ -1,6 +1,15 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class AppConfig {
   // OpenRouter API Configuration
-  static const String openRouterApiKey = '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'; // Replace with your actual API key
+  // Prefer passing at build/run with: --dart-define=OPENROUTER_API_KEY=...
+  // For local dev, you can also add OPENROUTER_API_KEY to a .env file (not committed).
+  static String get openRouterApiKey {
+    const fromDefine = String.fromEnvironment('OPENROUTER_API_KEY');
+    if (fromDefine.isNotEmpty) return fromDefine;
+    return dotenv.env['OPENROUTER_API_KEY'] ?? '';
+  }
+
   static const String openRouterBaseUrl = 'https://openrouter.ai/api/v1';
   static const String appName = 'Buddy Speech Bot';
   static const String appUrl = 'https://buddy-app.com';
@@ -35,8 +44,14 @@ class AppConfig {
       '- Output ONLY the facts as plain lines (no bullets/numbering). If none, output nothing.';
 
   // ElevenLabs Configuration
-  // WARNING: Keys in source control are insecure. Use env/secrets in production.
-  static const String elevenLabsApiKey = 'sk_8496480ea66ba8ff0ceb44b634e01d7f8d54b1e0bec4a91e';
+  // Prefer passing at build/run with: --dart-define=ELEVENLABS_API_KEY=...
+  // For local dev, you can also add ELEVENLABS_API_KEY to a .env file (not committed).
+  static String get elevenLabsApiKey {
+    const fromDefine = String.fromEnvironment('ELEVENLABS_API_KEY');
+    if (fromDefine.isNotEmpty) return fromDefine;
+    return dotenv.env['ELEVENLABS_API_KEY'] ?? '';
+  }
+
   // Default voice id (Rachel). Replace with your preferred voice id if needed.
   static const String elevenLabsVoiceId = 'CwhRBWXzGAHq8TQ4Fs17';
   // Default ElevenLabs TTS model
