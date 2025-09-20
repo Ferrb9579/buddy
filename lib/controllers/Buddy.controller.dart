@@ -1,7 +1,7 @@
 import 'package:get/get.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+// Removed FlutterTts dependency in favor of ElevenLabs TTS service
 import 'package:buddy/services/openrouter_service.dart';
 import 'package:buddy/services/conversation_history_service.dart';
 import 'package:buddy/services/memory_service.dart';
@@ -9,10 +9,11 @@ import 'package:buddy/models/memory_item.dart';
 import 'package:buddy/config/app_config.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:buddy/services/tts_service.dart';
 
 class BuddyController extends GetxController {
   final SpeechToText _speechToText = SpeechToText();
-  final FlutterTts _flutterTts = FlutterTts();
+  final TtsService _tts = TtsService();
   final OpenRouterService _openRouterService = OpenRouterService();
   final ConversationHistoryService _historyService = ConversationHistoryService();
   late final MemoryService _memoryService;
@@ -50,7 +51,7 @@ class BuddyController extends GetxController {
     super.onInit();
     _memoryService = MemoryService(maxTokens: AppConfig.memoryMaxTokens);
     _initSpeech();
-    _initTts();
+    // ElevenLabs TTS requires no runtime init beyond API key set in AppConfig
     _loadMute();
   }
 
@@ -72,35 +73,14 @@ class BuddyController extends GetxController {
     }
   }
 
-  /// Initialize text-to-speech
-  void _initTts() async {
-    try {
-      await _flutterTts.setLanguage(AppConfig.speechLanguage);
-      await _flutterTts.setSpeechRate(AppConfig.speechRate);
-      await _flutterTts.setVolume(AppConfig.speechVolume);
-      await _flutterTts.setPitch(AppConfig.speechPitch);
-
-      // Set up TTS completion handler
-      _flutterTts.setCompletionHandler(() {
-        _isSpeaking.value = false;
-        _statusMessage.value = 'Ready to listen!';
-      });
-
-      _flutterTts.setErrorHandler((msg) {
-        _isSpeaking.value = false;
-        _statusMessage.value = 'TTS Error: $msg';
-      });
-    } catch (e) {
-      _statusMessage.value = 'Error initializing TTS: $e';
-    }
-  }
+  // FlutterTTS init removed; TtsService handles playback
 
   /// Start listening for speech input
   void startListening() async {
     if (!_speechEnabled.value || _isProcessing.value || _isSpeaking.value) return;
 
     try {
-      await _flutterTts.stop(); // Stop any ongoing TTS
+      await _tts.stop(); // Stop any ongoing TTS
       _lastWords.value = '';
       _aiResponse.value = '';
       _isPaused.value = false;
@@ -284,7 +264,9 @@ class BuddyController extends GetxController {
       _isSpeaking.value = true;
       _statusMessage.value = 'Speaking...';
       final cleaned = _stripEmojis(text);
-      await _flutterTts.speak(cleaned);
+      await _tts.speak(cleaned);
+      _isSpeaking.value = false;
+      _statusMessage.value = 'Ready to listen!';
     } catch (e) {
       _isSpeaking.value = false;
       _statusMessage.value = 'Error speaking response: $e';
@@ -316,7 +298,7 @@ class BuddyController extends GetxController {
   /// Stop current TTS playback
   Future<void> stopSpeaking() async {
     try {
-      await _flutterTts.stop();
+      await _tts.stop();
       _isSpeaking.value = false;
       _statusMessage.value = 'Ready to listen!';
       _toast('Ready to listen!');
@@ -422,7 +404,7 @@ class BuddyController extends GetxController {
     _pauseTimer?.cancel();
     _processingTimer?.cancel();
     _speechToText.stop();
-    _flutterTts.stop();
+    _tts.stop();
     super.onClose();
   }
 

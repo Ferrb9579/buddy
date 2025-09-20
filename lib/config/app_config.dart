@@ -33,4 +33,14 @@ class AppConfig {
       '- If a new fact updates an older one (e.g., name change), output only the most recent fact.\n'
       '- Do NOT include generic chitchat or transient states.\n'
       '- Output ONLY the facts as plain lines (no bullets/numbering). If none, output nothing.';
+
+  // ElevenLabs Configuration
+  // WARNING: Keys in source control are insecure. Use env/secrets in production.
+  static const String elevenLabsApiKey = 'sk_8496480ea66ba8ff0ceb44b634e01d7f8d54b1e0bec4a91e';
+  // Default voice id (Rachel). Replace with your preferred voice id if needed.
+  static const String elevenLabsVoiceId = 'CwhRBWXzGAHq8TQ4Fs17';
+  // Default ElevenLabs TTS model
+  static const String elevenLabsModelId = 'eleven_turbo_v2_5';
+  // Output audio format for TTS
+  static const String elevenLabsOutputFormat = 'mp3_44100_128';
 }
