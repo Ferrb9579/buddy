@@ -47,6 +47,7 @@ dependencies:
   android_intent_plus: ^6.0.0
   timezone: ^0.9.4
   flutter_dotenv: ^5.1.0
+  installed_apps: ^1.6.0
 
 dev_dependencies:
   flutter_test:

@@ -6,6 +6,8 @@ import 'package:buddy/services/notification_ingest_service.dart';
 import 'package:buddy/services/reminder_service.dart';
 import 'package:intl/intl.dart';
 import 'package:android_intent_plus/android_intent.dart';
+import 'package:installed_apps/installed_apps.dart';
+import 'package:installed_apps/app_info.dart';
 
 class RemindersPage extends StatefulWidget {
   const RemindersPage({super.key});
@@ -18,11 +20,12 @@ class _RemindersPageState extends State<RemindersPage> {
   final _ingest = NotificationIngestService();
   final _reminders = ReminderService();
   bool _enabled = true;
-  bool _hasPermission = false;
   bool _android = false;
   List<Map<String, String>> _pending = const [];
   List<Map<String, dynamic>> _meta = const [];
-  final _appFilterController = TextEditingController();
+  List<AppInfo> _installedApps = const [];
+  Set<String> _allowedApps = <String>{};
+  bool _loadingApps = false;
 
   @override
   void initState() {
@@ -34,17 +37,18 @@ class _RemindersPageState extends State<RemindersPage> {
   Future<void> _init() async {
     await _reminders.initialize();
     final en = await _ingest.getEnabled();
-    // notifications package doesn't expose direct permission state reliably; keep cached flag only
-    bool perm = _hasPermission;
     final pending = await _reminders.listPending();
     final meta = await _reminders.getScheduledMeta();
     final allowedApps = await _ingest.getAllowedApps();
-    _appFilterController.text = allowedApps.join(', ');
+    if (_android && _installedApps.isEmpty) {
+      await _loadInstalledApps();
+    }
+    if (!mounted) return;
     setState(() {
       _enabled = en;
-      _hasPermission = perm;
       _pending = pending;
       _meta = meta;
+      _allowedApps = allowedApps.toSet();
     });
   }
 
@@ -55,37 +59,163 @@ class _RemindersPageState extends State<RemindersPage> {
 
   Future<void> _openNotificationAccessSettings() async {
     if (!_android) return;
-    final intent = AndroidIntent(action: 'android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS');
+    final intent = AndroidIntent(
+      action: 'android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS',
+    );
     await intent.launch();
   }
 
   Future<void> _testReminder() async {
     await _reminders.initialize();
-    await _reminders.showImmediate(id: DateTime.now().millisecondsSinceEpoch % 100000, title: 'Test Reminder', body: 'This is a test');
+    await _reminders.showImmediate(
+      id: DateTime.now().millisecondsSinceEpoch % 100000,
+      title: 'Test Reminder',
+      body: 'This is a test',
+    );
     await _init();
+  }
+
+  Future<void> _loadInstalledApps() async {
+    if (!_android) return;
+    setState(() {
+      _loadingApps = true;
+    });
+    List<AppInfo> apps = const [];
+    try {
+      final installed = await InstalledApps.getInstalledApps();
+      apps = List<AppInfo>.from(installed)
+        ..sort(
+          (a, b) =>
+              _appLabel(a).toLowerCase().compareTo(_appLabel(b).toLowerCase()),
+        );
+    } catch (_) {
+      apps = const [];
+    }
+    if (!mounted) return;
+    setState(() {
+      _installedApps = apps;
+      _loadingApps = false;
+    });
+  }
+
+  String _appLabel(AppInfo info) {
+    final name = info.name.trim();
+    if (name.isNotEmpty) return name;
+    final package = info.packageName.trim();
+    if (package.isNotEmpty) return package;
+    return 'Unknown app';
+  }
+
+  Future<void> _toggleApp(String packageName, bool enabled) async {
+    if (packageName.isEmpty) return;
+    setState(() {
+      if (enabled) {
+        _allowedApps.add(packageName);
+      } else {
+        _allowedApps.remove(packageName);
+      }
+    });
+    await _ingest.setAllowedApps(_allowedApps.toList());
+  }
+
+  Widget _buildAppFilterSection(BuildContext context) {
+    if (!_android) {
+      return const Text(
+        'Installed-app filtering is available only on Android devices.',
+      );
+    }
+
+    final borderColor = Colors.grey[300] ?? Colors.grey;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Choose which apps can create reminders:',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+          ),
+          child: SizedBox(
+            height: 220,
+            child: _loadingApps
+                ? const Center(child: CircularProgressIndicator())
+                : _installedApps.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No installed apps found or access not granted.',
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _installedApps.length,
+                    itemBuilder: (context, index) {
+                      final app = _installedApps[index];
+                      final package = app.packageName.trim();
+                      final label = _appLabel(app);
+                      final toggled = _allowedApps.contains(package);
+                      return SwitchListTile(
+                        title: Text(label),
+                        subtitle: package.isEmpty ? null : Text(package),
+                        value: toggled,
+                        onChanged: (value) => _toggleApp(package, value),
+                      );
+                    },
+                  ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _editReminder(Map<String, dynamic> meta) async {
     final id = meta['id'] as int?;
     if (id == null) return;
-    final titleController = TextEditingController(text: (meta['title'] ?? '').toString());
-    final bodyController = TextEditingController(text: (meta['body'] ?? '').toString());
+    final titleController = TextEditingController(
+      text: (meta['title'] ?? '').toString(),
+    );
+    final bodyController = TextEditingController(
+      text: (meta['body'] ?? '').toString(),
+    );
     final whenStr = (meta['when'] ?? '').toString();
     DateTime? when = DateTime.tryParse(whenStr)?.toLocal();
     if (when == null) when = DateTime.now().add(const Duration(minutes: 10));
-    final picked = await showDatePicker(context: context, initialDate: when, firstDate: DateTime.now().subtract(const Duration(days: 1)), lastDate: DateTime.now().add(const Duration(days: 365)));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: when,
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
     if (picked == null) return;
-    final timeOfDay = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(when));
+    final timeOfDay = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(when),
+    );
     if (timeOfDay == null) return;
-    final newWhen = DateTime(picked.year, picked.month, picked.day, timeOfDay.hour, timeOfDay.minute);
+    final newWhen = DateTime(
+      picked.year,
+      picked.month,
+      picked.day,
+      timeOfDay.hour,
+      timeOfDay.minute,
+    );
     final title = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Edit title'),
         content: TextField(controller: titleController),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, titleController.text), child: const Text('Save')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, titleController.text),
+            child: const Text('Save'),
+          ),
         ],
       ),
     );
@@ -96,13 +226,24 @@ class _RemindersPageState extends State<RemindersPage> {
         title: const Text('Edit body'),
         content: TextField(controller: bodyController),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, bodyController.text), child: const Text('Save')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, bodyController.text),
+            child: const Text('Save'),
+          ),
         ],
       ),
     );
     if (body == null) return;
-    await _reminders.updateReminder(id: id, title: title, body: body, when: newWhen);
+    await _reminders.updateReminder(
+      id: id,
+      title: title,
+      body: body,
+      when: newWhen,
+    );
     await _init();
   }
 
@@ -125,33 +266,14 @@ class _RemindersPageState extends State<RemindersPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Expanded(child: Text('Listen to notifications (Android only)')),
+                const Expanded(
+                  child: Text('Listen to notifications (Android only)'),
+                ),
                 Switch(value: _enabled, onChanged: _android ? _toggle : null),
               ],
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                const Text('App filter for listener (manual): '),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _appFilterController,
-                    decoration: const InputDecoration(hintText: 'e.g. com.whatsapp, com.google.android.gm'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () async {
-                    final parts = _appFilterController.text.split(',');
-                    final list = parts.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-                    await _ingest.setAllowedApps(list);
-                    setState(() {});
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            ),
+            _buildAppFilterSection(context),
             const SizedBox(height: 12),
             if (_android) ...[
               Row(
@@ -166,21 +288,38 @@ class _RemindersPageState extends State<RemindersPage> {
                     label: const Text('Clear all'),
                   ),
                   const SizedBox(width: 8),
-                  const Expanded(child: Text('Notification access must be granted in system settings.')),
-                  TextButton(onPressed: _openNotificationAccessSettings, child: const Text('Open Settings')),
+                  const Expanded(
+                    child: Text(
+                      'Notification access must be granted in system settings.',
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _openNotificationAccessSettings,
+                    child: const Text('Open Settings'),
+                  ),
                 ],
               ),
             ] else ...[
-              const Text('iOS/web: Notification ingestion is not available due to platform limits.'),
+              const Text(
+                'iOS/web: Notification ingestion is not available due to platform limits.',
+              ),
             ],
             const SizedBox(height: 24),
-            ElevatedButton.icon(onPressed: _testReminder, icon: const Icon(Icons.notification_add), label: const Text('Send test reminder now')),
+            ElevatedButton.icon(
+              onPressed: _testReminder,
+              icon: const Icon(Icons.notification_add),
+              label: const Text('Send test reminder now'),
+            ),
             const SizedBox(height: 24),
             Row(
               children: [
                 const Text('Scheduled reminders'),
                 const Spacer(),
-                IconButton(tooltip: 'Refresh', onPressed: _init, icon: const Icon(Icons.refresh)),
+                IconButton(
+                  tooltip: 'Refresh',
+                  onPressed: _init,
+                  icon: const Icon(Icons.refresh),
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -193,9 +332,14 @@ class _RemindersPageState extends State<RemindersPage> {
                       itemBuilder: (context, index) {
                         final it = _pending[index];
                         final id = it['id'] ?? '';
-                        final title = it['title']?.trim().isNotEmpty == true ? it['title']! : 'Reminder';
+                        final title = it['title']?.trim().isNotEmpty == true
+                            ? it['title']!
+                            : 'Reminder';
                         final body = it['body'] ?? '';
-                        final meta = _meta.firstWhere((m) => m['id']?.toString() == id, orElse: () => const {});
+                        final meta = _meta.firstWhere(
+                          (m) => m['id']?.toString() == id,
+                          orElse: () => const {},
+                        );
                         final whenStr = meta['when']?.toString();
                         String trailing = '#$id';
                         if (whenStr != null) {
@@ -208,14 +352,39 @@ class _RemindersPageState extends State<RemindersPage> {
                         return ListTile(
                           dense: true,
                           title: Text(title),
-                          subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [if (body.isNotEmpty) Text(body), if (meta.isNotEmpty && meta['app'] != null) Text('App: ${meta['app']}'), if (meta.isNotEmpty && meta['leadMinutes'] != null) Text('Lead: ${meta['leadMinutes']} min')]),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (body.isNotEmpty) Text(body),
+                              if (meta.isNotEmpty && meta['app'] != null)
+                                Text('App: ${meta['app']}'),
+                              if (meta.isNotEmpty &&
+                                  meta['leadMinutes'] != null)
+                                Text('Lead: ${meta['leadMinutes']} min'),
+                            ],
+                          ),
                           trailing: Wrap(
                             spacing: 8,
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Text(trailing, style: Theme.of(context).textTheme.bodySmall),
-                              IconButton(tooltip: 'Edit', onPressed: meta.isNotEmpty ? () => _editReminder(meta) : null, icon: const Icon(Icons.edit_outlined)),
-                              IconButton(tooltip: 'Delete', onPressed: meta.isNotEmpty ? () => _deleteReminder(meta) : null, icon: const Icon(Icons.delete_outline)),
+                              Text(
+                                trailing,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              IconButton(
+                                tooltip: 'Edit',
+                                onPressed: meta.isNotEmpty
+                                    ? () => _editReminder(meta)
+                                    : null,
+                                icon: const Icon(Icons.edit_outlined),
+                              ),
+                              IconButton(
+                                tooltip: 'Delete',
+                                onPressed: meta.isNotEmpty
+                                    ? () => _deleteReminder(meta)
+                                    : null,
+                                icon: const Icon(Icons.delete_outline),
+                              ),
                             ],
                           ),
                         );
