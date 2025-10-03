@@ -22,6 +22,7 @@ class _RemindersPageState extends State<RemindersPage> {
   final _reminders = ReminderService();
   bool _enabled = true;
   bool _android = false;
+  bool _persistentNotification = false;
   List<Reminder> _scheduledReminders = const [];
   List<AppInfo> _installedApps = const [];
   Set<String> _allowedApps = <String>{};
@@ -39,6 +40,7 @@ class _RemindersPageState extends State<RemindersPage> {
     final en = await _ingest.getEnabled();
     final scheduled = await _reminders.getScheduledReminders();
     final allowedApps = await _ingest.getAllowedApps();
+    final persistentEnabled = await _reminders.isPersistentNotificationEnabled();
     if (_android && _installedApps.isEmpty) {
       await _loadInstalledApps();
     }
@@ -47,11 +49,21 @@ class _RemindersPageState extends State<RemindersPage> {
       _enabled = en;
       _scheduledReminders = scheduled;
       _allowedApps = allowedApps.toSet();
+      _persistentNotification = persistentEnabled;
     });
   }
 
   Future<void> _toggle(bool v) async {
     await _ingest.setEnabled(v);
+    await _init();
+  }
+
+  Future<void> _togglePersistentNotification(bool v) async {
+    if (v) {
+      await _reminders.startPersistentNotification();
+    } else {
+      await _reminders.stopPersistentNotification();
+    }
     await _init();
   }
 
@@ -259,6 +271,21 @@ class _RemindersPageState extends State<RemindersPage> {
               ],
             ),
             const SizedBox(height: 8),
+            if (_android) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Expanded(child: Text('Keep app running (persistent notification)')),
+                  Switch(value: _persistentNotification, onChanged: _togglePersistentNotification),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Padding(
+                padding: EdgeInsets.only(left: 16.0, bottom: 8.0),
+                child: Text('Shows a persistent notification to prevent Android from killing the app', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ),
+              const SizedBox(height: 8),
+            ],
             OutlinedButton.icon(onPressed: _showAppFilterSheet, icon: const Icon(Icons.apps), label: const Text('Select notification apps')),
             const SizedBox(height: 12),
             if (_android) ...[

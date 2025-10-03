@@ -29,6 +29,11 @@ Future<void> main() async {
     if (enabled) {
       await ingest.start();
     }
+    // Restore persistent notification if it was enabled
+    final persistentEnabled = await reminders.isPersistentNotificationEnabled();
+    if (persistentEnabled) {
+      await reminders.startPersistentNotification();
+    }
   }
   runApp(const MyApp());
 }

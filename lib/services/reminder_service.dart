@@ -133,6 +133,74 @@ class ReminderService {
     await androidSpecific.createNotificationChannel(channel);
   }
 
+  // Persistent notification management (keeps app from being killed)
+  static const int _persistentNotificationId = 999999;
+  static const String _persistentChannelId = 'buddy_foreground_service';
+  static const String _persistentChannelName = 'Buddy Service';
+  static const String _persistentChannelDescription = 'Keeps Buddy running in background';
+
+  Future<void> startPersistentNotification() async {
+    if (kIsWeb) return;
+    await initialize();
+
+    final androidSpecific = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    if (androidSpecific == null) return;
+
+    // Create a separate low-priority channel for the persistent notification
+    const persistentChannel = AndroidNotificationChannel(_persistentChannelId, _persistentChannelName, description: _persistentChannelDescription, importance: Importance.low, playSound: false, enableLights: false, enableVibration: false, showBadge: false);
+
+    try {
+      await androidSpecific.createNotificationChannel(persistentChannel);
+
+      const androidDetails = AndroidNotificationDetails(
+        _persistentChannelId,
+        _persistentChannelName,
+        channelDescription: _persistentChannelDescription,
+        importance: Importance.low,
+        priority: Priority.low,
+        ongoing: true, // Makes it persistent (can't swipe away)
+        autoCancel: false,
+        icon: '@mipmap/launcher_icon',
+        showWhen: false,
+      );
+      const notificationDetails = NotificationDetails(android: androidDetails);
+
+      // Show persistent notification
+      await _plugin.show(_persistentNotificationId, 'Buddy is active', 'Monitoring your reminders', notificationDetails);
+
+      // Store the state in preferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('buddy_foreground_service_enabled', true);
+
+      debugPrint('ReminderService: Persistent notification started');
+    } catch (err) {
+      debugPrint('ReminderService: Failed to start persistent notification ($err)');
+    }
+  }
+
+  Future<void> stopPersistentNotification() async {
+    if (kIsWeb) return;
+
+    try {
+      // Cancel the persistent notification
+      await _plugin.cancel(_persistentNotificationId);
+
+      // Update the state in preferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('buddy_foreground_service_enabled', false);
+
+      debugPrint('ReminderService: Persistent notification stopped');
+    } catch (err) {
+      debugPrint('ReminderService: Failed to stop persistent notification ($err)');
+    }
+  }
+
+  Future<bool> isPersistentNotificationEnabled() async {
+    if (kIsWeb) return false;
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('buddy_foreground_service_enabled') ?? false;
+  }
+
   Future<Reminder> scheduleReminder({int? id, required String title, required String body, required DateTime when, int? groupId, String? app, int? leadMinutes}) async {
     if (kIsWeb) {
       throw UnsupportedError('Reminder scheduling is not supported on web.');
