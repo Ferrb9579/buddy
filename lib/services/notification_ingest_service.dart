@@ -1,11 +1,10 @@
 import 'dart:async';
-import 'dart:math';
-
 import 'package:notifications/notifications.dart' as ntf;
 import 'package:buddy/services/reminder_service.dart';
 import 'package:buddy/services/openrouter_service.dart';
 import 'package:buddy/services/toast_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
 class NotificationIngestService {
   static final NotificationIngestService _instance = NotificationIngestService._();
@@ -87,8 +86,8 @@ class NotificationIngestService {
       }
       try {
         // Primary reminder
-        final idMain = Random().nextInt(1 << 31);
-        await _reminders.scheduleReminder(id: idMain, title: 'Reminder', body: desc.isEmpty ? text : desc, when: when, groupId: idMain, app: app);
+        final primary = await _reminders.scheduleReminder(title: 'Reminder', body: desc.isEmpty ? text : desc, when: when, app: app);
+        final groupId = primary.id;
 
         // Optional lead reminders for tasks like assignments; simple heuristic on keywords
         final lower = ('$title\n$text').toLowerCase();
@@ -98,15 +97,13 @@ class NotificationIngestService {
           for (final m in leads) {
             final leadTime = when.subtract(Duration(minutes: m));
             if (leadTime.isAfter(DateTime.now())) {
-              await _reminders.scheduleReminder(id: Random().nextInt(1 << 31), title: 'Reminder', body: '${desc.isNotEmpty ? desc : title} (in ${m}m)', when: leadTime, groupId: idMain, app: app, leadMinutes: m);
+              await _reminders.scheduleReminder(title: 'Reminder', body: '${desc.isNotEmpty ? desc : title} (in ${m}m)', when: leadTime, groupId: groupId, app: app, leadMinutes: m);
             }
           }
         }
-        final local = when.toLocal();
-        final hh = local.hour % 12 == 0 ? 12 : local.hour % 12;
-        final mm = local.minute.toString().padLeft(2, '0');
-        final ampm = local.hour >= 12 ? 'PM' : 'AM';
-        ToastService().show('⏰ ${desc.isNotEmpty ? desc : title} • $hh:$mm $ampm');
+        final local = primary.scheduledAt;
+        final formatted = DateFormat('MMM d • h:mm a').format(local);
+        ToastService().show('⏰ ${desc.isNotEmpty ? desc : title} • $formatted');
       } catch (e) {
         ToastService().show('⚠️ Failed to set reminder');
       }
