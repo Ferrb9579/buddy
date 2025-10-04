@@ -15,7 +15,8 @@ class AppConfig {
   static const String appUrl = 'https://buddy-app.com';
 
   // Model Configuration
-  static const String defaultModel = 'google/gemma-2-27b-it';
+  // Using a FREE model that supports function calling for web search
+  static const String defaultModel = 'meta-llama/llama-3.1-8b-instruct';
   static const int maxTokens = 150;
   static const double temperature = 0.7;
 

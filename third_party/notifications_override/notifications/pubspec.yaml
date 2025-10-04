@@ -1,0 +1,21 @@
+name: notifications
+description: Patched version of notifications package with null safety fixes
+version: 3.1.0
+homepage: https://github.com/cachet/flutter-plugins
+
+environment:
+  sdk: '>=2.12.0 <4.0.0'
+  flutter: ">=2.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: dk.cachet.notifications
+        pluginClass: NotificationsPlugin
+      ios:
+        pluginClass: NotificationsPlugin

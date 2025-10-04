@@ -61,6 +61,11 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+# Override the notifications package with our patched version that has null safety fixes
+dependency_overrides:
+  notifications:
+    path: third_party/notifications_override/notifications
+
 flutter_launcher_icons:
   android: "launcher_icon"
   image_path: "assets/buddy_logo.jpeg"

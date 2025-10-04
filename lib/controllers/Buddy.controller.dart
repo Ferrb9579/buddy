@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -235,10 +236,36 @@ class BuddyController extends GetxController {
 
       // Convert AI response to speech
       await _speakResponse(response);
-    } catch (e) {
-      _statusMessage.value = 'Error: $e';
-      _toast('Error occurred');
-      await _speakResponse('Sorry, I encountered an error processing your request.');
+    } catch (e, stackTrace) {
+      print('❌ Error in _processUserInput: $e');
+      print('Stack trace: $stackTrace');
+
+      // Parse error message to show user-friendly toast
+      String errorMessage = 'Sorry, I encountered an error processing your request.';
+      String toastMessage = 'Error occurred';
+
+      final errorStr = e.toString();
+      if (errorStr.contains('Rate limit exceeded')) {
+        errorMessage = 'Sorry, the rate limit has been exceeded. Please try again in a few moments.';
+        toastMessage = 'Rate limit exceeded. Try again later.';
+      } else if (errorStr.contains('Invalid API key')) {
+        errorMessage = 'Sorry, there\'s an issue with the API configuration.';
+        toastMessage = 'API key error';
+      } else if (errorStr.contains('Network error') || errorStr.contains('Connection timeout')) {
+        errorMessage = 'Sorry, there\'s a network connection issue. Please check your internet.';
+        toastMessage = 'Network error. Check connection.';
+      } else if (errorStr.contains('404')) {
+        errorMessage = 'Sorry, the AI service is temporarily unavailable.';
+        toastMessage = 'Service unavailable (404)';
+      }
+
+      _statusMessage.value = toastMessage;
+      _toast(toastMessage);
+
+      // Show snackbar with detailed error
+      Get.snackbar('⚠️ Error', toastMessage, snackPosition: SnackPosition.BOTTOM, duration: const Duration(seconds: 4), backgroundColor: Get.theme.colorScheme.errorContainer, colorText: Get.theme.colorScheme.onErrorContainer);
+
+      await _speakResponse(errorMessage);
     } finally {
       _isProcessing.value = false;
     }
@@ -410,6 +437,17 @@ class BuddyController extends GetxController {
 
   void _toast(String message) {
     if (message.trim().isEmpty) return;
-    // Toasts removed per request
+    // Simple snackbar for quick status updates
+    Get.showSnackbar(
+      GetSnackBar(
+        message: message,
+        duration: const Duration(seconds: 2),
+        snackPosition: SnackPosition.TOP,
+        margin: const EdgeInsets.all(8),
+        borderRadius: 8,
+        backgroundColor: Get.theme.colorScheme.surfaceContainerHighest,
+        messageText: Text(message, style: TextStyle(color: Get.theme.colorScheme.onSurface)),
+      ),
+    );
   }
 }
